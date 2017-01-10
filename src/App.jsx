@@ -2,24 +2,23 @@ import React, {Component} from 'react';
 import {observer} from 'mobx-react';
 import DevTools from 'mobx-react-devtools';
 import PhenotypeSelection from './Components/PhenotypeSelection'
+import VariantTable from './Components/VariantTable'
 import {get} from './MolgenisApi'
-import {Phenotype} from './GavinStore'
 
 @observer
 class App extends Component {
     render() {
         return (
             <div>
-                <PhenotypeSelection phenotypes={this.props.gavinStore.phenotypes} loadOptions={(input) => {
+                <PhenotypeSelection store={this.props.gavinStore} loadOptions={(input) => {
                     return get(this.props.gavinStore.server, this.getUrl(input), this.props.gavinStore.token).then((json) => {
                         return {
                             options: json.items.map(App.getOption),
                             complete: false
                         }
                     })
-                }} onPhenoChange={(pheno) => {
-                    this.props.gavinStore.addPhenotype(new Phenotype(pheno.value, true))
                 }}/>
+                <VariantTable gavinStore={this.props.gavinStore} />
                 <DevTools />
             </div>
         );

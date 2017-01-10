@@ -9,7 +9,7 @@ import {Phenotype} from '../GavinStore'
 // Presentation components
 // ------------------------------------
 const propTypes = {
-    phenotypes: PropTypes.object,
+    store: PropTypes.object,
     togglePhenotype: PropTypes.func,
     removePhenotype: PropTypes.func,
     loadOptions: PropTypes.func,
@@ -19,17 +19,17 @@ const propTypes = {
 @observer
 class PhenotypeSelection extends Component {
     render() {
-        const {phenotypes} = this.props
+        const {store} = this.props
         return (
             <div>
                 Select the phenotypes for the patient:
                 <ReactSelect.Async
                     loadOptions={
                         this.props.loadOptions}
-                    onChange={(pheno) => phenotypes.push(new Phenotype(pheno.value, true))}
+                    onChange={(pheno) => store.addPhenotype(new Phenotype(pheno.value, true)) }
                 />
 
-                {phenotypes && <SelectedPhenotypes {...this.props} /> }
+                {store.phenotypes && <SelectedPhenotypes {...this.props} /> }
             </div>
         )
     }

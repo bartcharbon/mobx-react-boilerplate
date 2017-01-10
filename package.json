@@ -44,6 +44,7 @@
     "mobx-react-devtools": "^4.2.0",
     "react": "^15.1.0",
     "react-bootstrap": "^0.30.7",
+    "react-bootstrap-table": "^2.9.0",
     "react-dom": "^15.1.0",
     "react-select": "^1.0.0-rc.2"
   }
