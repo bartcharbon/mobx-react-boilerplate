@@ -18,8 +18,9 @@ class VariantTable extends Component {
           return <div>Loading...</div>;
       } else {
           return (
-              <BootstrapTable ref='table' data={gavinStore.variantsSortedOnScore}>
-                   <TableHeaderColumn dataField='identifier' hidden isKey>identifier</TableHeaderColumn>
+              <BootstrapTable ref='table' data={gavinStore.variants}>
+                  <TableHeaderColumn dataField='totalScore'>score</TableHeaderColumn>
+                  <TableHeaderColumn dataField='identifier' hidden isKey>identifier</TableHeaderColumn>
                    <TableHeaderColumn dataField='CHROM'>Chromosome</TableHeaderColumn>
                    <TableHeaderColumn dataField='POS'>Position</TableHeaderColumn>
                    <TableHeaderColumn dataField='REF'>Reference allele</TableHeaderColumn>

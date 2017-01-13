@@ -16,12 +16,12 @@ class SelectedPhenotypes extends Component {
                 <FormGroup>
                     {store.phenotypes.map((pheno, index) => <span key={index}><Checkbox inline checked={pheno.active}
                                                                                   onChange={() => {
-                                                                                      pheno.active = !pheno.active
+                                                                                      store.togglePhenotype(index)
                                                                                   }}>
             {pheno.value.name}
           </Checkbox>&nbsp;
                             <small>
-              <Glyphicon glyph='remove' onClick={() => store.phenotypes.remove(store.phenotypes[index])}/>
+              <Glyphicon glyph='remove' onClick={() => store.removePhenotype(index)}/>
             </small>
                             &nbsp;&nbsp;&nbsp;
           </span>

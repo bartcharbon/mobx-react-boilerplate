@@ -19,6 +19,7 @@ export class Variant {
     ALT;
     Gene;
     Gavin;
+    totalScore;
 
     constructor(identifier, chrom, pos, ref, alt, gene, gavin) {
         this.identifier = identifier
@@ -34,20 +35,18 @@ export class Variant {
 
 export class Score {
     score;
-    hpo;
-    gene;
+    Gene;
 
-    constructor(score, hpo, gene) {
+    constructor(gene, score) {
         this.score = score;
-        this.hpo = hpo;
-        this.gene = gene;
+        this.Gene = gene;
     }
 }
 
 class GavinStore {
 
     @observable phenotypes = [];
-    @observable scores = asMap({});
+    @observable scores = asMap();
     @observable variants = [];
     @observable isLoading;
     token = "492d07a9434f48a5915b454200d92c6c";
@@ -56,13 +55,25 @@ class GavinStore {
 
     constructor() {
         this.phenotypes = []
-        this.fetchVariants("diag_AAAACWIH72E3LQSABEBZGYAAAE");//TODO: where does this method call go? //TODO get entityName from URL
+        this.variants = this.getVariantsSortedOnScore()
     }
 
     @action addPhenotype(phenotype) {
         this.fetchGeneNetworkScores(phenotype).then(
-            this.phenotypes.push(phenotype)
+            this.phenotypes.push(phenotype),
+            this.getVariantsSortedOnScore()
         );
+    }
+
+    @action removePhenotype(index) {
+        this.phenotypes.remove(this.phenotypes[index])
+        this.getVariantsSortedOnScore()
+    }
+
+    @action togglePhenotype(index) {
+        var phenotype = this.phenotypes[index];
+        phenotype.active = !phenotype.active;
+        this.getVariantsSortedOnScore()
     }
 
     @action getPhenotypeQuery(input) {
@@ -74,13 +85,15 @@ class GavinStore {
         return [`ontology==${this.ontologyId}`, ...termQueryParts].join(';')
     }
 
-    @action setScore(geneID, score) {
-        console.log("setScore",this);
-        this.scores.set(geneID, score)
+    @action setScore(hpo, value) {
+        this.scores.set(hpo, value)
+    }
+
+    @computed get getVariants() {
+        return this.variants;
     }
 
     fetchVariants(entityName) {
-        this.isLoading = true;
         return get(this.server, `v2/${entityName}`, this.token).then((json) => {
             var attrNames = json.meta.attributes.map(function (attr) {
                 return attr.name
@@ -92,8 +105,7 @@ class GavinStore {
             var variants = json.items.map(function (variant) {
                 return new Variant(variant.INTERNAL_ID, variant['#CHROM'], variant.POS, variant.REF, variant.ALT, variant.Gene, variant.Gavin)
             })
-            this.variants.push.apply(this.variants, variants)
-            this.isLoading = false;
+            return variants
         }).catch((error) => {
             console.log("error", error)
             var message = ''
@@ -101,7 +113,6 @@ class GavinStore {
                 message = error.errors[0].message
             }
             alert('danger', 'Error retrieving entity[' + entityName + '] from the server', message)
-            this.isLoading = false;
         })
     }
 
@@ -110,20 +121,29 @@ class GavinStore {
         const genes = this.variants.map(function (variant) {
             return variant.Gene
         }).join()
-        return get(this.server, `v2/sys_GeneNetworkScore?q=hpo==${phenotype.value.primaryID};hugo=in=(${genes})&num=1000`, this.token)
+        const hpo = phenotype.value.primaryID
+        return get(this.server, `v2/sys_GeneNetworkScore?q=hpo==${hpo};hugo=in=(${genes})&num=1000`, this.token)
             .then((json) => {
                 if (json.items.length === 0) {
                     console.log('warning', 'No Gene Network scores were found for phenotype[' +
-                        phenotype.value.name + '(' + phenotype.value.primaryID + ')]', 'Unable to determine gene priority order')
+                        phenotype.value.name + '(' + hpo + ')]', 'Unable to determine gene priority order')
                 }
                 json.items.forEach(function (score) {
                     const geneID = score.hugo
-                    if (store.scores.has(geneID)) {
+                    if (store.scores[phenotype.value.primaryID] != undefined && store.scores[hpo].has(geneID)) {
                         console.log('warning', 'More than one Gene Network score found for combination of gene[' +
-                            geneID + ')] and phenotype[' + phenotype.value.primaryID + ')]', '')
-                        store.setScore(geneID, undefined)
+                            geneID + ')] and phenotype[' + hpo + ')]', '')
+                        score = new Score(geneID, undefined)
                     } else {
-                        store.setScore(geneID, score.score)
+                        score = new Score(geneID, score.score)
+                    }
+
+                    if (store.scores.get(hpo) === undefined) {
+                        store.setScore(hpo, [score])
+                    } else {
+                        var scores = store.scores.get(hpo);
+                        scores.push(score);
+                        store.setScore(hpo, scores)
                     }
                 })
             }).catch((error) => {
@@ -145,28 +165,33 @@ class GavinStore {
         return 0
     }
 
-    //TODO: rewrite to "normal" function that updates variants in the store, and create getter for variants?
-    @computed get variantsSortedOnScore() {
-        const store = this;
-        const phenos = this.phenotypes.filter(pheno => pheno.active).map(pheno => pheno.id)
-        const genes = this.variants.map(function (variant) {
-            return variant.Gene
-        })
-        const scores = this.scores
-        const totalScorePerGene = genes.reduce((soFar, gene) => ({
-            ...soFar,
-            [gene]: phenos.reduce((total, pheno) => {
-                if (!scores.has(pheno) || !scores[pheno].has(gene) || total === undefined) {
-                    return undefined
-                }
-                return total + scores[pheno][gene]
-            }, 0)
-        }), {})
-
-        return this.variants.map(element => {
-            return {...element, totalScore: totalScorePerGene[element.Gene]}
-        }).sort(function (item1, item2) {
-            return store.sortVariants(item1, item2)
+    getVariantsSortedOnScore() {
+        this.isLoading = true;
+        this.fetchVariants("diag_AAAACWIH72E3LQSABEBZGYAAAE").then((variants) => {
+                const store = this;
+                const phenos = this.phenotypes.filter(pheno => pheno.active).map(pheno => pheno.value.primaryID)
+                const genes = variants.map(function (variant) {
+                    return variant.Gene
+                })
+                const scores = this.scores
+                const totalScorePerGene = genes.reduce((soFar, gene) => ({
+                    ...soFar,
+                    [gene]: phenos.reduce((total, pheno) => {
+                        if (!scores.has(pheno) || scores.get(pheno).find(score => score.Gene === gene) === undefined || total === undefined) {;
+                            return undefined
+                        }
+                        return total + scores.get(pheno).find(score => score.Gene === gene).score
+                    }, 0)
+                }), {})
+                this.variants = variants.map(element => {
+                    return {...element, totalScore: totalScorePerGene[element.Gene]}
+                }).sort(function (item1, item2) {
+                    return store.sortVariants(item1, item2)
+                })
+                this.isLoading = false;
+            }
+        ).catch((error) => {
+            console.log('Error retrieving variants from the server', error)
         })
     }
 }
